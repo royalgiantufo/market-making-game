@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>造市練習台</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: one narrow column like a dealing ticket — board on top, quote ticket in the middle, tape and settlement below. */
+:root {
+  --bg: #eef1f4; --surface: #ffffff; --sunk: #e4e9ee; --ink: #15202b; --muted: #566472; --line: #cfd7df;
+  --accent: #1d4fd7; --on-accent: #ffffff; --buy: #0b7a5c; --sell: #b72f3a; --warn: #8a5a00;
+  --sans: "IBM Plex Sans", "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0e141a; --surface: #172029; --sunk: #111920; --ink: #e5ecf2; --muted: #93a2b0; --line: #2a3743;
+  --accent: #7ea6ff; --on-accent: #0b1220; --buy: #43cf9f; --sell: #ff7d86; --warn: #e2b256; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0e141a; --surface: #172029; --sunk: #111920; --ink: #e5ecf2; --muted: #93a2b0; --line: #2a3743;
+  --accent: #7ea6ff; --on-accent: #0b1220; --buy: #43cf9f; --sell: #ff7d86; --warn: #e2b256; color-scheme: dark }
+
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--ink); font-family: var(--sans); font-size: 15px; line-height: 1.55;
+  padding-block: 20px 48px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)) }
+.wrap { max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px }
+h1 { font-size: 22px; font-weight: 600; margin: 0; letter-spacing: .01em }
+h2 { font-size: 13px; font-weight: 600; margin: 0; color: var(--muted); letter-spacing: .08em }
+p { margin: 0 }
+.num { font-family: var(--mono); font-variant-numeric: tabular-nums }
+.muted { color: var(--muted) }
+.buy { color: var(--buy) } .sell { color: var(--sell) }
+
+header { display: flex; flex-direction: column; gap: 4px }
+.setup { display: flex; flex-wrap: wrap; gap: 10px; align-items: end }
+.field { display: flex; flex-direction: column; gap: 4px; min-width: 0 }
+.field > span { font-size: 12px; color: var(--muted) }
+select, input[type="number"] { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 9px 10px; min-width: 0 }
+input[type="number"] { font-family: var(--mono); font-size: 20px; font-weight: 500; width: 100%; text-align: center }
+button { font: inherit; font-weight: 500; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); padding: 9px 14px; cursor: pointer }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600 }
+button:disabled { opacity: .45; cursor: not-allowed }
+:is(button, select, input, summary):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 14px }
+.rules { font-size: 13px; color: var(--muted) }
+.rules b { color: var(--ink); font-weight: 600 }
+
+.tiles { display: flex; flex-wrap: wrap; gap: 8px }
+.tile { width: 54px; height: 68px; border-radius: 8px; border: 1px solid var(--line); background: var(--sunk); display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: var(--mono) }
+.tile b { font-size: 24px; font-weight: 600; line-height: 1 }
+.tile small { font-size: 11px; color: var(--muted); margin-top: 4px }
+.tile.hid b { color: var(--muted) }
+.tile.new { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent) }
+.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px }
+.stat { display: flex; flex-direction: column; gap: 2px; min-width: 0 }
+.stat span { font-size: 12px; color: var(--muted) }
+.stat b { font-family: var(--mono); font-size: 18px; font-weight: 600 }
+
+.fillbox { border-radius: 8px; background: var(--sunk); padding: 10px 12px; font-size: 14px }
+.ticket { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px }
+.ticket .field > span b { font-weight: 600 }
+.stepper { display: grid; grid-template-columns: 36px minmax(0, 1fr) 36px; gap: 4px }
+.stepper button { padding: 0; font-family: var(--mono); font-size: 18px }
+.err { color: var(--sell); font-size: 13px; min-height: 1.4em }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center }
+
+.tape { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 14px }
+.tape li { display: grid; grid-template-columns: 4.5em 6.5em minmax(0, 1fr); gap: 8px; align-items: baseline }
+
+.pnl { font-family: var(--mono); font-size: 40px; font-weight: 600; line-height: 1.1 }
+.scroll { overflow-x: auto }
+table { border-collapse: collapse; width: 100%; font-size: 13px; min-width: 620px }
+th, td { text-align: right; padding: 7px 8px; border-bottom: 1px solid var(--line); white-space: nowrap }
+th { font-weight: 500; color: var(--muted); font-size: 12px }
+th:first-child, td:first-child { text-align: left }
+td { font-family: var(--mono); font-variant-numeric: tabular-nums }
+.notes { margin: 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 6px }
+.notes li.flag::marker { color: var(--warn) }
+.flagtxt { color: var(--warn); font-weight: 600 }
+details summary { cursor: pointer; color: var(--muted); font-size: 13px }
+details > div { margin-top: 8px; font-size: 13px; color: var(--muted); display: flex; flex-direction: column; gap: 6px }
+textarea { width: 100%; font-family: var(--mono); font-size: 12px; color: var(--ink); background: var(--sunk); border: 1px solid var(--line); border-radius: 6px; padding: 8px; min-height: 140px }
+@media (max-width: 460px) { .ticket { grid-template-columns: repeat(2, minmax(0, 1fr)) } .ticket .est { grid-column: 1 / -1 } .pnl { font-size: 32px } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>造市練習台</h1>
+    <p class="muted">你報 bid / ask，看得到答案的知情者和亂買亂賣的散戶會來成交。結算後告訴你每一輪該報多少。</p>
+  </header>
+
+  <div class="setup">
+    <label class="field"><span>標的</span>
+      <select id="under">
+        <option value="dice4">4 顆骰子的總和</option>
+        <option value="cards3" selected>3 張牌的總和</option>
+        <option value="cards5">5 張牌的總和</option>
+      </select></label>
+    <label class="field"><span>難度</span>
+      <select id="diff">
+        <option value="easy">入門</option>
+        <option value="mid" selected>標準</option>
+        <option value="hard">困難</option>
+      </select></label>
+    <button id="newgame" type="button">重新發牌</button>
+  </div>
+
+  <section class="panel" aria-label="牌面">
+    <p class="rules" id="rules"></p>
+    <div class="tiles" id="tiles"></div>
+    <div class="stats">
+      <div class="stat"><span>輪次</span><b id="s-round">1 / 3</b></div>
+      <div class="stat"><span>已公開合計</span><b id="s-shown">0</b></div>
+      <div class="stat"><span>你的部位</span><b id="s-pos">0</b></div>
+    </div>
+  </section>
+
+  <section class="panel" id="ticket-panel" aria-label="報價">
+    <h2>報價</h2>
+    <div class="fillbox" id="lastfill">還沒有任何成交。先報第 1 輪的 bid 和 ask。</div>
+    <form id="quote" novalidate>
+      <div class="ticket">
+        <label class="field"><span><b class="buy">Bid</b>　你願意買的價</span>
+          <span class="stepper"><button type="button" data-step="bid:-1" aria-label="bid 減 1">−</button><input id="bid" type="number" inputmode="numeric" step="1" required><button type="button" data-step="bid:1" aria-label="bid 加 1">+</button></span></label>
+        <label class="field"><span><b class="sell">Ask</b>　你願意賣的價</span>
+          <span class="stepper"><button type="button" data-step="ask:-1" aria-label="ask 減 1">−</button><input id="ask" type="number" inputmode="numeric" step="1" required><button type="button" data-step="ask:1" aria-label="ask 加 1">+</button></span></label>
+        <label class="field est"><span>你估的 fair value（選填）</span>
+          <input id="est" type="number" inputmode="decimal" step="0.1"></label>
+      </div>
+      <p class="err" id="err" role="alert"></p>
+      <div class="actions"><button class="primary" type="submit" id="send">送出報價</button><span class="muted" id="caphint"></span></div>
+    </form>
+  </section>
+
+  <section class="panel" aria-label="成交紀錄">
+    <h2>成交紀錄</h2>
+    <ul class="tape" id="tape"><li class="muted" style="display:block">送出報價後，每一輪的成交會列在這裡。</li></ul>
+  </section>
+
+  <section class="panel" id="settle" hidden aria-label="結算">
+    <h2>結算</h2>
+    <div><div class="pnl" id="pnl">0</div><p class="muted" id="pnl-sub"></p></div>
+    <div class="scroll"><table id="rtable"></table></div>
+    <ul class="notes" id="notes"></ul>
+    <div class="actions"><button class="primary" type="button" id="again">再來一局</button><button type="button" id="copy">複製這局的紀錄</button><span class="muted" id="copied"></span></div>
+    <textarea id="copytext" hidden readonly aria-label="這局的紀錄"></textarea>
+  </section>
+
+  <section class="panel" aria-label="累計">
+    <h2>累計</h2>
+    <div class="stats">
+      <div class="stat"><span>已玩局數</span><b id="h-n">0</b></div>
+      <div class="stat"><span>總損益</span><b id="h-pnl">0</b></div>
+      <div class="stat"><span>平均每局 EV 差距</span><b id="h-gap">–</b></div>
+    </div>
+    <p class="muted" style="font-size:13px">困難模式下，報得再好期望值也是負的，目標是少賠。EV 差距是你的報價和「單輪最佳報價」的期望值差，越接近 0 越好。它不受運氣影響，比損益更能反映報價品質。紀錄只存在這台裝置的瀏覽器裡。</p>
+    <details><summary>對手怎麼出手</summary><div>
+      <p><b>知情者</b>看得到總和。總和高於你的 ask 就買、低於你的 bid 就賣，剛好等於則不動。有利可圖時他有一定機率出手（見上方規則），數量在 1 到上限之間隨機。</p>
+      <p><b>散戶</b>什麼都不知道。每輪 25% 機率在你的 ask 買 1 單位，25% 機率在你的 bid 賣 1 單位，50% 不動。</p>
+      <p>成交時你只看得到總量，不知道是誰。「含成交資訊的 fair value」是用這套規則對每一筆成交和每一次沒成交做 Bayes 更新後的期望值。</p>
+    </div></details>
+  </section>
+</div>
+
+<script>
+(function () {
+'use strict';
+const $ = id => document.getElementById(id);
+const UNDER = {
+  dice4:  { label: '4 顆骰子的總和', kind: 'dice',  n: 4, caps: { easy: 3, mid: 3, hard: 3 }, par: { easy: 1.0, mid: 0.2, hard: -0.9 } },
+  cards3: { label: '3 張牌的總和',   kind: 'cards', n: 3, caps: { easy: 6, mid: 6, hard: 5 }, par: { easy: 1.3, mid: -0.1, hard: -4.0 } },
+  cards5: { label: '5 張牌的總和',   kind: 'cards', n: 5, caps: { easy: 7, mid: 6, hard: 6 }, par: { easy: 3.3, mid: -1.1, hard: -3.2 } },
+};
+const DIFF = { easy: { label: '入門', lots: 1, act: 0.7 }, mid: { label: '標準', lots: 2, act: 0.8 }, hard: { label: '困難', lots: 3, act: 0.9 } };
+const RANK = ['', 'A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+const NOISE = [[0.5, 0, 0], [0.25, 1, 0], [0.25, 0, 1]];
+let G = null;
+
+function rand() { const a = new Uint32Array(1); crypto.getRandomValues(a); return a[0] / 4294967296; }
+function rnd(n) { return Math.floor(rand() * n); }
+const sum = a => a.reduce((x, y) => x + y, 0);
+const fmt = (x, d = 2) => { const s = (Math.round(x * 10 ** d) / 10 ** d).toFixed(d).replace(/\.?0+$/, ''); return s === '-0' ? '0' : s; };
+const signed = x => (x > 0 ? '+' : '') + fmt(x);
+function choose(n, k) { let r = 1; for (let i = 0; i < k; i++) r = r * (n - i) / (i + 1); return r; }
+
+/* Distribution of the sum of the still-hidden elements, given what has been shown. */
+function remainderDist(cfg, shown) {
+  const m = cfg.n - shown.length;
+  if (cfg.kind === 'dice') {
+    let d = { 0: 1 };
+    for (let i = 0; i < m; i++) { const nd = {}; for (const s in d) for (let f = 1; f <= 6; f++) nd[+s + f] = (nd[+s + f] || 0) + d[s] / 6; d = nd; }
+    return d;
+  }
+  const cnt = Array(14).fill(4); shown.forEach(v => cnt[v]--);
+  let ways = Array.from({ length: m + 1 }, () => ({})); ways[0][0] = 1;
+  for (let r = 1; r <= 13; r++) {
+    const nw = Array.from({ length: m + 1 }, () => ({}));
+    for (let c = 0; c <= m; c++) for (const s in ways[c]) for (let j = 0; j <= Math.min(cnt[r], m - c); j++)
+      nw[c + j][+s + j * r] = (nw[c + j][+s + j * r] || 0) + ways[c][s] * choose(cnt[r], j);
+    ways = nw;
+  }
+  const tot = sum(Object.values(ways[m])); const d = {};
+  for (const s in ways[m]) d[s] = ways[m][s] / tot;
+  return d;
+}
+function pInformed(S, q, ib, is, g) {
+  if (S > q.ask) return is ? 0 : ib === 0 ? 1 - g.act : ib <= g.lots ? g.act / g.lots : 0;
+  if (S < q.bid) return ib ? 0 : is === 0 ? 1 - g.act : is <= g.lots ? g.act / g.lots : 0;
+  return ib === 0 && is === 0 ? 1 : 0;
+}
+function likelihood(S, q, g) {
+  let L = 0;
+  for (const [p, nb, ns] of NOISE) { const ib = q.buy - nb, is = q.sell - ns; if (ib >= 0 && is >= 0) L += p * pInformed(S, q, ib, is, g); }
+  return L;
+}
+/* Belief about the total before quoting in round r: r elements shown, fills from rounds < r. useTrades=false gives the public-cards-only view. */
+function belief(g, r, useTrades) {
+  const shown = g.hidden.slice(0, r), base = sum(shown), rem = remainderDist(g.cfg, shown), post = {};
+  let tot = 0;
+  for (const s in rem) { const S = base + +s; let w = rem[s]; if (useTrades) for (let k = 0; k < r; k++) w *= likelihood(S, g.log[k], g); post[S] = w; tot += w; }
+  for (const S in post) post[S] /= tot;
+  return post;
+}
+const mean = d => { let m = 0; for (const S in d) m += +S * d[S]; return m; };
+function quoteEV(d, bid, ask, g) {
+  const k = g.act * (g.lots + 1) / 2; let ev = 0.25 * (ask - bid);
+  for (const S in d) { if (+S > ask) ev += d[S] * k * (ask - +S); else if (+S < bid) ev += d[S] * k * (+S - bid); }
+  return ev;
+}
+function bestQuote(d, g) {
+  const keys = Object.keys(d).map(Number), lo = Math.min(...keys), hi = Math.max(...keys), F = mean(d);
+  let best = null;
+  for (let b = lo - g.cap; b <= hi; b++) for (let w = 1; w <= g.cap; w++) {
+    const ev = quoteEV(d, b, b + w, g), off = Math.abs(b + w / 2 - F);
+    if (!best || ev > best.ev + 1e-9 || (Math.abs(ev - best.ev) <= 1e-9 && off < best.off)) best = { bid: b, ask: b + w, ev, off };
+  }
+  return best;
+}
+
+function newGame() {
+  const cfg = UNDER[$('under').value], dk = $('diff').value, df = DIFF[dk];
+  let hidden;
+  if (cfg.kind === 'dice') hidden = Array.from({ length: cfg.n }, () => 1 + rnd(6));
+  else { const deck = []; for (let v = 1; v <= 13; v++) for (let i = 0; i < 4; i++) deck.push(v); hidden = []; for (let i = 0; i < cfg.n; i++) hidden.push(deck.splice(rnd(deck.length), 1)[0]); }
+  G = { cfg, diff: df.label, par: cfg.par[dk], cap: cfg.caps[dk], lots: df.lots, act: df.act, hidden, total: sum(hidden), round: 0, pos: 0, log: [], done: false };
+  ['bid', 'ask', 'est'].forEach(id => $(id).value = '');
+  $('err').textContent = ''; $('settle').hidden = true; $('ticket-panel').hidden = false; $('copytext').hidden = true; $('copied').textContent = '';
+  $('lastfill').textContent = '還沒有任何成交。先報第 1 輪的 bid 和 ask。';
+  $('tape').innerHTML = '<li class="muted" style="display:block">送出報價後，每一輪的成交會列在這裡。</li>';
+  render();
+}
+const label = v => G.cfg.kind === 'cards' ? RANK[v] : String(v);
+const posText = p => p === 0 ? 'flat' : (p > 0 ? 'long ' : 'short ') + Math.abs(p);
+
+function render() {
+  const g = G, shownN = g.done ? g.cfg.n : g.round;
+  $('rules').innerHTML = `標的是 <b>${g.cfg.label}</b>${g.cfg.kind === 'cards' ? '（A = 1，J = 11，Q = 12，K = 13，不放回）' : ''}。價差上限 <b class="num">${g.cap}</b>。知情者有利可圖時 <b class="num">${Math.round(g.act * 100)}%</b> 會出手，每輪最多 <b class="num">${g.lots}</b> 單位；散戶每輪最多 1 單位。每輪都報最佳價，平均一局約 <b class="num">${signed(g.par)}</b>。`;
+  $('tiles').innerHTML = g.hidden.map((v, i) => i < shownN
+    ? `<div class="tile${!g.done && i === shownN - 1 ? ' new' : ''}"><b>${label(v)}</b>${g.cfg.kind === 'cards' ? `<small>${v}</small>` : ''}</div>`
+    : '<div class="tile hid"><b>?</b></div>').join('');
+  $('s-round').textContent = g.done ? '結束' : `${g.round + 1} / ${g.cfg.n}`;
+  $('s-shown').textContent = sum(g.hidden.slice(0, shownN));
+  const sp = $('s-pos'); sp.textContent = posText(g.pos); sp.className = g.pos > 0 ? 'buy' : g.pos < 0 ? 'sell' : '';
+  $('caphint').textContent = `整數報價，ask − bid 最多 ${g.cap}`;
+}
+
+function fillText(q) {
+  const parts = [];
+  if (q.buy) parts.push(`<span class="sell">ask ${q.ask} 被買走 ${q.buy} 單位</span>`);
+  if (q.sell) parts.push(`<span class="buy">bid ${q.bid} 被賣了 ${q.sell} 單位</span>`);
+  return parts.length ? parts.join('，') : '<span class="muted">沒有成交</span>';
+}
+
+function submit(ev) {
+  ev.preventDefault();
+  const g = G; if (!g || g.done) return;
+  const bid = Number($('bid').value), ask = Number($('ask').value), estRaw = $('est').value.trim();
+  const err = $('bid').value === '' || $('ask').value === '' ? 'bid 和 ask 都要填。'
+    : !Number.isInteger(bid) || !Number.isInteger(ask) ? '報價必須是整數。'
+    : ask <= bid ? 'ask 必須高於 bid。'
+    : ask - bid > g.cap ? `價差是 ${ask - bid}，超過上限 ${g.cap}。` : '';
+  $('err').textContent = err; if (err) return;
+  const S = g.total; let ib = 0, is = 0, nb = 0, ns = 0;
+  if (S > ask) { if (rand() < g.act) ib = 1 + rnd(g.lots); } else if (S < bid) { if (rand() < g.act) is = 1 + rnd(g.lots); }
+  const u = rand(); if (u < 0.25) nb = 1; else if (u < 0.5) ns = 1;
+  const q = { bid, ask, est: estRaw === '' ? null : Number(estRaw), posBefore: g.pos, ib, is, nb, ns, buy: ib + nb, sell: is + ns };
+  g.log.push(q); g.pos += q.sell - q.buy;
+  if (g.round === 0) $('tape').innerHTML = '';
+  $('tape').insertAdjacentHTML('beforeend', `<li><span class="muted">第 ${g.round + 1} 輪</span><span class="num">${bid} / ${ask}</span><span>${fillText(q)}</span></li>`);
+  g.round++;
+  if (g.round >= g.cfg.n) { g.done = true; settle(); render(); return; }
+  $('lastfill').innerHTML = `第 ${g.round} 輪：${fillText(q)}。新公開的是 <b class="num">${label(g.hidden[g.round - 1])}</b>，請報第 ${g.round + 1} 輪。`;
+  $('est').value = '';
+  render(); $('bid').focus();
+}
+
+function settle() {
+  const g = G, S = g.total; let pnl = 0, pInf = 0, pNoise = 0, evYou = 0, evBest = 0, estErr = 0, estN = 0;
+  const flags = [], rows = [];
+  g.log.forEach((q, r) => {
+    const pub = mean(belief(g, r, false)), post = belief(g, r, true), fv = mean(post), best = bestQuote(post, g), ev = quoteEV(post, q.bid, q.ask, g);
+    const rp = (q.ask - S) * q.buy + (S - q.bid) * q.sell;
+    pnl += rp; pInf += (q.ask - S) * q.ib + (S - q.bid) * q.is; pNoise += (q.ask - S) * q.nb + (S - q.bid) * q.ns; evYou += ev; evBest += best.ev;
+    if (q.est !== null && !Number.isNaN(q.est)) { estErr += Math.abs(q.est - fv); estN++; }
+    const who = [q.ib && `知情者買 ${q.ib}`, q.is && `知情者賣 ${q.is}`, q.nb && '散戶買 1', q.ns && '散戶賣 1'].filter(Boolean).join('、') || '無';
+    rows.push({ r: r + 1, q, pub, fv, best, ev, rp, who });
+    const mid = (q.bid + q.ask) / 2, n = r + 1;
+    if (fv < q.bid || fv > q.ask) flags.push(`第 ${n} 輪的報價 ${q.bid} / ${q.ask} 沒有包住 fair value ${fmt(fv)}。${r > 0 && Math.abs(fv - pub) >= 0.5 ? `光看牌面是 ${fmt(pub)}，前面的成交把它推到 ${fmt(fv)}。` : ''}`);
+    else if (best.ev - ev > 0.15 && Math.abs(mid - (best.bid + best.ask) / 2) >= 1) flags.push(`第 ${n} 輪報 ${q.bid} / ${q.ask}，單輪最佳是 ${best.bid} / ${best.ask}，期望值差 ${fmt(best.ev - ev)}。`);
+    if (q.ask - q.bid < g.cap) flags.push(`第 ${n} 輪價差只用了 ${q.ask - q.bid}（上限 ${g.cap}）。對手有資訊優勢時，收窄價差等於少收保護費。`);
+    if (q.posBefore < 0 && mid < fv - 0.5) flags.push(`第 ${n} 輪你是 short ${-q.posBefore}，報價中心 ${fmt(mid)} 卻低於 fair value ${fmt(fv)}。short 時應該往上 skew。`);
+    if (q.posBefore > 0 && mid > fv + 0.5) flags.push(`第 ${n} 輪你是 long ${q.posBefore}，報價中心 ${fmt(mid)} 卻高於 fair value ${fmt(fv)}。long 時應該往下 skew。`);
+  });
+  const el = $('pnl'); el.textContent = signed(pnl); el.className = 'pnl ' + (pnl > 0 ? 'buy' : pnl < 0 ? 'sell' : '');
+  $('pnl-sub').textContent = `總和是 ${S}。被知情者吃掉 ${signed(pInf)}，從散戶賺到 ${signed(pNoise)}。`;
+  $('rtable').innerHTML = '<thead><tr><th>輪</th><th>你的報價</th><th>單輪最佳</th><th>含成交 FV</th><th>損益</th><th>成交</th><th>只看牌面 FV</th><th>你估的 FV</th></tr></thead><tbody>'
+    + rows.map(x => `<tr><td>${x.r}</td><td>${x.q.bid} / ${x.q.ask}</td><td>${x.best.bid} / ${x.best.ask}</td><td>${fmt(x.fv)}</td><td class="${x.rp > 0 ? 'buy' : x.rp < 0 ? 'sell' : ''}">${signed(x.rp)}</td><td style="font-family:var(--sans)">${x.who}</td><td>${fmt(x.pub)}</td><td>${x.q.est === null ? '–' : fmt(x.q.est)}</td></tr>`).join('') + '</tbody>';
+  const gap = evYou - evBest, notes = [];
+  notes.push(`<li>報價品質：你的報價期望值合計 <span class="num">${signed(evYou)}</span>，單輪最佳合計 <span class="num">${signed(evBest)}</span>，差距 <span class="num">${fmt(gap)}</span>。${gap > -0.3 ? '幾乎沒有丟掉期望值。' : gap > -1 ? '有小幅的期望值損失。' : '丟掉的期望值不少，看下面標出的輪次。'}</li>`);
+  if (pnl < 0 && gap > -0.5) notes.push('<li>這局賠錢但報價是好的，虧損來自運氣和避不掉的 adverse selection。</li>');
+  if (pnl > 0 && gap <= -1) notes.push('<li>這局賺錢，但報價並不好，是運氣站在你這邊。</li>');
+  if (estN) notes.push(`<li>你估的 fair value 和含成交資訊的 fair value 平均差 <span class="num">${fmt(estErr / estN)}</span>。</li>`);
+  flags.forEach(f => notes.push(`<li class="flag"><span class="flagtxt">要改：</span>${f}</li>`));
+  if (!flags.length) notes.push('<li>每一輪都包住了 fair value，價差用滿，skew 方向也對。</li>');
+  $('notes').innerHTML = notes.join('');
+  $('settle').hidden = false; $('ticket-panel').hidden = true;
+  g.summary = [`造市練習台｜${g.cfg.label}｜${g.diff}｜價差上限 ${g.cap}｜知情者 ${Math.round(g.act * 100)}% 出手、最多 ${g.lots} 單位`,
+    `牌面：${g.hidden.map(label).join('、')}，總和 ${S}`,
+    ...rows.map(x => `第 ${x.r} 輪：報 ${x.q.bid}/${x.q.ask}${x.q.est === null ? '' : `（自估 FV ${fmt(x.q.est)}）`}，部位 ${posText(x.q.posBefore)}；牌面 FV ${fmt(x.pub)}，含成交 FV ${fmt(x.fv)}，最佳 ${x.best.bid}/${x.best.ask}；成交：${x.who}；損益 ${signed(x.rp)}`),
+    `總損益 ${signed(pnl)}（知情者 ${signed(pInf)}，散戶 ${signed(pNoise)}）；EV 差距 ${fmt(gap)}`,
+    ...flags.map(f => '要改：' + f)].join('\n');
+  saveHistory(pnl, gap);
+}
+
+function loadHistory() { try { return JSON.parse(localStorage.getItem('mm-history')) || { n: 0, pnl: 0, gap: 0 }; } catch (e) { return { n: 0, pnl: 0, gap: 0 }; } }
+function showHistory(h) { $('h-n').textContent = h.n; $('h-pnl').textContent = signed(h.pnl); $('h-pnl').className = h.pnl > 0 ? 'buy' : h.pnl < 0 ? 'sell' : ''; $('h-gap').textContent = h.n ? fmt(h.gap / h.n) : '–'; }
+function saveHistory(pnl, gap) { const h = loadHistory(); h.n++; h.pnl += pnl; h.gap += gap; try { localStorage.setItem('mm-history', JSON.stringify(h)); } catch (e) {} showHistory(h); }
+
+$('quote').addEventListener('submit', submit);
+$('newgame').addEventListener('click', newGame);
+$('again').addEventListener('click', () => { newGame(); $('bid').focus(); });
+$('under').addEventListener('change', newGame);
+$('diff').addEventListener('change', newGame);
+document.querySelectorAll('[data-step]').forEach(b => b.addEventListener('click', () => {
+  const [id, d] = b.dataset.step.split(':'), inp = $(id);
+  if (inp.value === '') { const other = $(id === 'bid' ? 'ask' : 'bid').value; inp.value = other !== '' ? Number(other) + (id === 'bid' ? -G.cap : G.cap) : Math.round(mean(belief(G, G.round, false))); }
+  else inp.value = Math.round(Number(inp.value)) + Number(d);
+}));
+$('copy').addEventListener('click', async () => {
+  const t = $('copytext'); t.value = G.summary;
+  try { await navigator.clipboard.writeText(G.summary); $('copied').textContent = '已複製，可以貼給 Claude 檢討。'; }
+  catch (e) { t.hidden = false; t.focus(); t.select(); $('copied').textContent = '無法自動複製，請手動複製下面的文字。'; }
+});
+window.__mm = { get G() { return G; }, belief, mean, bestQuote, quoteEV, likelihood };
+showHistory(loadHistory());
+newGame();
+})();
+</script>
+</body>
+</html>
