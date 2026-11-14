@@ -1,5 +1,7 @@
 # 造市練習台 Market-Making Practice
 
+**直接玩：** https://royalgiantufo.github.io/market-making-game/
+
 一個在瀏覽器裡玩的造市（market making）練習遊戲。你報 bid / ask，看得到答案的知情者和隨機買賣的散戶會來成交，結算後告訴你每一輪該報多少。
 
 A single-page market-making drill: quote a two-sided market on a hidden sum while an informed trader and a noise trader trade against you. The interface is in Traditional Chinese.
